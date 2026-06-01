@@ -19,12 +19,13 @@ import com.tech.motjip.repository.MemberRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -743,6 +744,12 @@ public class ChatMessageService {
             Long memberId
     ) {
 
+        System.out.println(
+                "MARK_ROOM_MESSAGES_AS_READ"
+                        + " roomId=" + roomId
+                        + " memberId=" + memberId
+        );
+
         Map<String, Object> result =
                 new HashMap<>();
 
@@ -859,17 +866,20 @@ public class ChatMessageService {
                 unreadCountMap
         );
 
-        messagingTemplate.convertAndSend(
-                "/sub/chat/room/"
-                        + roomId
-                        + "/read",
-                readPayload
-        );
+        if (!readMessageIds.isEmpty()) {
 
-        broadcastRoomUpdatesAfterRead(
-                roomId,
-                roomMembers
-        );
+            messagingTemplate.convertAndSend(
+                    "/sub/chat/room/"
+                            + roomId
+                            + "/read",
+                    readPayload
+            );
+
+            broadcastRoomUpdatesAfterRead(
+                    roomId,
+                    roomMembers
+            );
+        }
 
         result.put(
                 "readMessageIds",
@@ -897,35 +907,22 @@ public class ChatMessageService {
             return;
         }
 
-        boolean alreadyExists =
-                chatMessageReadRepository.existsByMessageIdAndMemberId(
-                        messageId,
-                        memberId
-                );
+        try {
 
-        if (alreadyExists) {
+            chatMessageReadRepository.insertIgnoreRead(
+                    messageId,
+                    roomId,
+                    memberId
+            );
+
+        } catch (DataIntegrityViolationException e) {
+
+            return;
+
+        } catch (Exception e) {
 
             return;
         }
-
-        ChatMessageRead read =
-                new ChatMessageRead();
-
-        read.setMessageId(
-                messageId
-        );
-
-        read.setRoomId(
-                roomId
-        );
-
-        read.setMemberId(
-                memberId
-        );
-
-        chatMessageReadRepository.save(
-                read
-        );
     }
 
     private long calculateMessageUnreadCount(
