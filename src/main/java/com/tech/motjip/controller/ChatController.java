@@ -268,7 +268,7 @@ public class ChatController {
             margin-top:100px;
         ">
 
-            <h2>채팅방에 초대되었습니다</h2>
+            <h2>맛남의 광장 채팅방에 초대되었습니다</h2>
 
             <button
                 onclick="openApp()"
@@ -291,7 +291,7 @@ public class ChatController {
                 function openApp() {
 
                     window.location.href =
-                        "motjip://invite/%s";
+                        "motjip://chat/invite/%s";
                 }
 
             </script>

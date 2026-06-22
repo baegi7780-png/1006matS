@@ -16,4 +16,7 @@ public class ParticipantResponseDto {
     private String nickname;
 
     private String profileImgUrl;
+
+    private boolean owner;
+
 }
