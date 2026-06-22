@@ -520,6 +520,10 @@ public class ChatMessageService {
                 request.getRoomType()
         );
 
+        room.setOwnerId(
+                request.getMemberIds().get(0)
+        );
+
         String inviteCode =
                 UUID.randomUUID()
                         .toString()
@@ -1383,6 +1387,16 @@ public class ChatMessageService {
             Long roomId
     ) {
 
+        ChatRoom room =
+                chatRoomRepository.findById(
+                        roomId
+                ).orElseThrow(() ->
+                        new RuntimeException(
+                                "채팅방이 존재하지 않습니다."
+                        )
+                );
+
+
         List<ParticipantResponseDto> result =
                 new ArrayList<>();
 
@@ -1411,6 +1425,12 @@ public class ChatMessageService {
 
                         dto.setProfileImgUrl(
                                 member.getProfileImgUrl()
+                        );
+
+                        dto.setOwner(
+                                room.getOwnerId().equals(
+                                        member.getMemberId()
+                                )
                         );
 
                         result.add(
