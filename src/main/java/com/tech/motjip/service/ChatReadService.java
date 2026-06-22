@@ -1,7 +1,6 @@
 package com.tech.motjip.service;
 
 import com.tech.motjip.dto.responseDto.ChatReadEventDto;
-import com.tech.motjip.dto.responseDto.ChatRoomUpdateDto;
 import com.tech.motjip.repository.ChatMessageRepository;
 import com.tech.motjip.repository.ChatRoomMemberRepository;
 
@@ -29,6 +28,12 @@ public class ChatReadService {
             Long roomId,
             Long memberId
     ) {
+
+        System.out.println(
+                "CHAT_READ_SERVICE_UPDATE_READ_TIME"
+                        + " roomId=" + roomId
+                        + " memberId=" + memberId
+        );
 
         chatRoomMemberRepository.findByRoomIdAndMemberId(
                 roomId,
@@ -107,26 +112,6 @@ public class ChatReadService {
                 messagingTemplate.convertAndSend(
                         "/sub/chat/room/" + roomId + "/read",
                         readEvent
-                );
-
-                ChatRoomUpdateDto roomUpdate =
-                        new ChatRoomUpdateDto();
-
-                roomUpdate.setRoomId(
-                        roomId
-                );
-
-                roomUpdate.setUnreadCount(
-                        0
-                );
-
-                roomUpdate.setTargetMemberId(
-                        memberId
-                );
-
-                messagingTemplate.convertAndSend(
-                        "/sub/chat/rooms/update",
-                        roomUpdate
                 );
             }
         });

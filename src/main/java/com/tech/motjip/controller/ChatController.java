@@ -8,7 +8,6 @@ import com.tech.motjip.dto.responseDto.ChatRoomResponseDto;
 import com.tech.motjip.dto.responseDto.FriendResponseDto;
 import com.tech.motjip.dto.responseDto.ParticipantResponseDto;
 import com.tech.motjip.service.ChatMessageService;
-import com.tech.motjip.service.ChatReadService;
 import com.tech.motjip.service.ChatService;
 
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,6 @@ import java.util.Map;
 public class ChatController {
 
     private final ChatMessageService chatMessageService;
-    private final ChatReadService chatReadService;
     private final ChatService chatService;
 
     @GetMapping("/api/chat/my-rooms/{memberId}")
@@ -119,11 +117,6 @@ public class ChatController {
             @PathVariable Long roomId,
             @PathVariable Long memberId
     ) {
-
-        chatReadService.updateReadTime(
-                roomId,
-                memberId
-        );
 
         Map<String, Object> result =
                 chatMessageService.markRoomMessagesAsRead(
@@ -216,14 +209,11 @@ public class ChatController {
                 roomId
         );
 
-        Map<String, Object> result =
-                chatMessageService.markRoomMessagesAsRead(
-                        roomId,
-                        memberId
-                );
-
         return ResponseEntity.ok(
-                result
+                Map.of(
+                        "entered",
+                        true
+                )
         );
     }
 
@@ -300,7 +290,5 @@ public class ChatController {
 
         </html>
         """.formatted(inviteCode);
-
     }
-
 }

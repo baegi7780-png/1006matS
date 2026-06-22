@@ -19,12 +19,13 @@ import com.tech.motjip.repository.MemberRepository;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.beans.factory.annotation.Value;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -171,7 +172,15 @@ public class ChatMessageService {
             );
 
             dto.setRoomName(
-                    room.getRoomName()
+                    buildDisplayRoomName(
+                            room,
+                            memberId,
+                            allRoomMembers
+                    )
+            );
+
+            dto.setCustomRoomName(
+                    room.isCustomRoomName()
             );
 
             dto.setRoomType(
@@ -512,8 +521,21 @@ public class ChatMessageService {
         ChatRoom room =
                 new ChatRoom();
 
+        boolean hasCustomRoomName =
+                request.getRoomName() != null
+                        && !request.getRoomName()
+                        .trim()
+                        .isEmpty();
+
         room.setRoomName(
-                request.getRoomName()
+                hasCustomRoomName
+                        ? request.getRoomName()
+                          .trim()
+                        : null
+        );
+
+        room.setCustomRoomName(
+                hasCustomRoomName
         );
 
         room.setRoomType(
@@ -726,6 +748,12 @@ public class ChatMessageService {
             Long memberId
     ) {
 
+        System.out.println(
+                "MARK_ROOM_MESSAGES_AS_READ"
+                        + " roomId=" + roomId
+                        + " memberId=" + memberId
+        );
+
         Map<String, Object> result =
                 new HashMap<>();
 
@@ -842,17 +870,20 @@ public class ChatMessageService {
                 unreadCountMap
         );
 
-        messagingTemplate.convertAndSend(
-                "/sub/chat/room/"
-                        + roomId
-                        + "/read",
-                readPayload
-        );
+        if (!readMessageIds.isEmpty()) {
 
-        broadcastRoomUpdatesAfterRead(
-                roomId,
-                roomMembers
-        );
+            messagingTemplate.convertAndSend(
+                    "/sub/chat/room/"
+                            + roomId
+                            + "/read",
+                    readPayload
+            );
+
+            broadcastRoomUpdatesAfterRead(
+                    roomId,
+                    roomMembers
+            );
+        }
 
         result.put(
                 "readMessageIds",
@@ -880,35 +911,22 @@ public class ChatMessageService {
             return;
         }
 
-        boolean alreadyExists =
-                chatMessageReadRepository.existsByMessageIdAndMemberId(
-                        messageId,
-                        memberId
-                );
+        try {
 
-        if (alreadyExists) {
+            chatMessageReadRepository.insertIgnoreRead(
+                    messageId,
+                    roomId,
+                    memberId
+            );
+
+        } catch (DataIntegrityViolationException e) {
+
+            return;
+
+        } catch (Exception e) {
 
             return;
         }
-
-        ChatMessageRead read =
-                new ChatMessageRead();
-
-        read.setMessageId(
-                messageId
-        );
-
-        read.setRoomId(
-                roomId
-        );
-
-        read.setMemberId(
-                memberId
-        );
-
-        chatMessageReadRepository.save(
-                read
-        );
     }
 
     private long calculateMessageUnreadCount(
@@ -1109,14 +1127,19 @@ public class ChatMessageService {
                 ).orElse(null);
 
         String roomName =
-                room != null
-                        ? room.getRoomName()
-                        : null;
+                null;
 
         String roomType =
-                room != null
-                        ? room.getRoomType()
-                        : null;
+                null;
+
+        if (room != null) {
+
+            roomType =
+                    room.getRoomType();
+
+            roomName =
+                    room.getRoomName();
+        }
 
         for (ChatRoomMember roomMember : roomMembers) {
 
@@ -1125,6 +1148,12 @@ public class ChatMessageService {
 
                 continue;
             }
+
+            String finalRoomName =
+                    roomName;
+
+            String finalRoomType =
+                    roomType;
 
             memberRepository.findById(
                             roomMember.getMemberId()
@@ -1167,8 +1196,8 @@ public class ChatMessageService {
                                 savedMessage.getSenderNickname(),
                                 pushBody,
                                 savedMessage.getRoomId(),
-                                roomName,
-                                roomType,
+                                finalRoomName,
+                                finalRoomType,
                                 "CHAT_MESSAGE"
                         );
                     });
@@ -1472,6 +1501,77 @@ public class ChatMessageService {
         }
 
         return result;
+    }
+
+    private String buildDisplayRoomName(
+            ChatRoom room,
+            Long currentMemberId,
+            List<ChatRoomMember> allRoomMembers
+    ) {
+
+        if (room.isCustomRoomName()) {
+
+            if (room.getRoomName() != null
+                    && !room.getRoomName()
+                    .trim()
+                    .isEmpty()) {
+
+                return room.getRoomName();
+            }
+
+            return "채팅방";
+        }
+
+        List<String> nicknames =
+                new ArrayList<>();
+
+        for (ChatRoomMember roomMember : allRoomMembers) {
+
+            if (!roomMember.getRoomId()
+                    .equals(room.getRoomId())) {
+
+                continue;
+            }
+
+            if (roomMember.getMemberId()
+                    .equals(currentMemberId)) {
+
+                continue;
+            }
+
+            memberRepository.findById(
+                    roomMember.getMemberId()
+            ).ifPresent(member -> {
+
+                String nickname =
+                        member.getNickname();
+
+                if (nickname == null
+                        || nickname.trim().isEmpty()) {
+
+                    nickname =
+                            member.getEmailId();
+                }
+
+                if (nickname != null
+                        && !nickname.trim().isEmpty()) {
+
+                    nicknames.add(
+                            nickname
+                    );
+                }
+            });
+        }
+
+        if (nicknames.isEmpty()) {
+
+            return "채팅방";
+        }
+
+        return String.join(
+                ", ",
+                nicknames
+        );
     }
 
     private ChatMessageResponseDto toChatMessageResponseDto(
